@@ -1,19 +1,29 @@
 {
   "name": "hashcash-pow-generator",
   "version": "1.0.0",
+  "description": "Hashcash POW Generator with Keccak-512 support for 100% Lesta.ru compatibility",
+  "main": "pow_calculator.js",
   "scripts": {
-    "start": "node server.js",
+    "test": "node pow_calculator.js '{\"version\":1,\"complexity\":3,\"timestamp\":1751209794,\"resourse\":\"wgni\",\"extension\":\"\",\"random_string\":\"bCXX2S4JiyogmA0J\"}'",
     "install-deps": "npm install keccak js-sha3"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
     "js-sha3": "^0.8.0"
   },
   "optionalDependencies": {
-    "keccak": "^3.0.4"
+    "keccak": "^3.0.2"
   },
+  "keywords": [
+    "hashcash",
+    "proof-of-work",
+    "keccak",
+    "keccak-512",
+    "lesta",
+    "pow"
+  ],
+  "author": "POW Generator",
+  "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=10.0.0"
   }
 }

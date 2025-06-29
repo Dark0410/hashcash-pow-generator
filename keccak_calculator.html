@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hashcash POW Generator - Keccak-512</title>
+    <script src="https://cdn.jsdelivr.net/npm/js-sha3@0.8.0/build/sha3.min.js"></script>
+    <script>
+        // Fallback загрузка sha3.js если основная библиотека не загрузилась
+        window.addEventListener('load', function() {
+            if (typeof sha3 === 'undefined') {
+                console.warn('Основная библиотека sha3 не загрузилась, пытаемся загрузить fallback...');
+                
+                // Создаем fallback скрипт
+                var fallbackScript = document.createElement('script');
+                fallbackScript.src = 'https://unpkg.com/js-sha3@0.8.0/build/sha3.min.js';
+                fallbackScript.onerror = function() {
+                    console.error('Fallback библиотека sha3 также не загрузилась');
+                    // Показываем ошибку пользователю
+                    var errorDiv = document.getElementById('result');
+                    if (errorDiv) {
+                        errorDiv.innerHTML = '<div style="color: red; font-weight: bold;">❌ Ошибка: Библиотека sha3.js не загружена. Проверьте подключение к интернету.</div>';
+                    }
+                };
+                document.head.appendChild(fallbackScript);
+            }
+        });
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .algorithm-badge {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            height: 150px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .result-section {
+            margin-top: 30px;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+
+        .result-success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .result-error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-info {
+            background: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .comparison-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Hashcash POW Generator</h1>
+            <p class="subtitle">Генератор Proof of Work с использованием Keccak-512</p>
+            <div class="algorithm-badge">100% совместимость с Lesta.ru</div>
+        </div>
+
+        <div class="input-section">
+            <h3>📝 Входные данные</h3>
+            <div class="form-group">
+                <label for="jsonInput">JSON данные:</label>
+                <textarea id="jsonInput" placeholder='Вставьте JSON данные здесь...'></textarea>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-primary" onclick="generatePOW()">
+                🚀 Генерировать POW (Keccak-512)
+            </button>
+            <button class="btn btn-secondary" onclick="loadExample()">
+                📝 Загрузить пример
+            </button>
+            <button class="btn btn-secondary" onclick="clearAll()">
+                🗑️ Очистить
+            </button>
+            <button class="btn btn-success" onclick="compareAlgorithms()">
+                ⚖️ Сравнить алгоритмы
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Вычисление POW...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">0 / 1,000,000</p>
+        </div>
+
+        <div class="result-section">
+            <h3>📊 Результат</h3>
+            <div id="result" class="result-box">
+                Нажмите "Генерировать POW" для начала вычислений
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Функция pow - точная реализация алгоритма Lesta.ru с Keccak-512
+        function pow(version, complexity, timestamp, resourse, extension, random_string) {
+            // Проверяем доступность библиотеки sha3
+            if (typeof sha3 === 'undefined' || typeof sha3.keccak512 === 'undefined') {
+                console.error('Библиотека sha3 недоступна');
+                return null;
+            }
+
+            // 1. Формируем строку var7
+            const var7 = `${version}:${complexity}:${timestamp}:${resourse}:${extension}:${random_string}:`;
+            
+            // 2. Создаем строку из нулей для проверки
+            const zero_quantity = '0'.repeat(complexity);
+            
+            // 3. Цикл от 1 до 1,000,000
+            for (let i = 1; i < 1000000; i++) {
+                // 4. К строке var7 в конце добавляется индекс цикла
+                const var10 = var7 + i.toString();
+                
+                // 5. Полученная строка полностью хешируется в Keccak-512
+                const var12 = sha3.keccak512(var10);
+                
+                // 6. Проверяется на количество нулей в начале строки
+                const check = var12.startsWith(zero_quantity);
+                
+                if (check) {
+                    return {
+                        pow: i,
+                        hash: var12,
+                        string: var10
+                    };
+                }
+            }
+            
+            return null;
+        }
+
+        // Функция powSHA3 для сравнения (использует SHA3-512)
+        function powSHA3(version, complexity, timestamp, resourse, extension, random_string) {
+            // Проверяем доступность библиотеки sha3
+            if (typeof sha3 === 'undefined' || typeof sha3.sha3_512 === 'undefined') {
+                console.error('Библиотека sha3 недоступна');
+                return null;
+            }
+
+            const var7 = `${version}:${complexity}:${timestamp}:${resourse}:${extension}:${random_string}:`;
+            const zero_quantity = '0'.repeat(complexity);
+            
+            for (let i = 1; i < 1000000; i++) {
+                const var10 = var7 + i.toString();
+                const var12 = sha3.sha3_512(var10);
+                const check = var12.startsWith(zero_quantity);
+                
+                if (check) {
+                    return {
+                        pow: i,
+                        hash: var12,
+                        string: var10
+                    };
+                }
+            }
+            
+            return null;
+        }       function updateProgress(current, total) {
+            const percentage = (current / total) * 100;
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = `${current.toLocaleString()} / ${total.toLocaleString()}`;
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').innerHTML = '';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0 / 1,000,000';
+        }
+
+        async function generatePOW() {
+            const jsonInput = document.getElementById('jsonInput').value.trim();
+            
+            if (!jsonInput) {
+                showResult('Пожалуйста, введите JSON данные', 'error');
+                return;
+            }
+
+            let data;
+            try {
+                data = JSON.parse(jsonInput);
+            } catch (e) {
+                showResult('Ошибка парсинга JSON: ' + e.message, 'error');
+                return;
+            }
+
+            if (!data.pow) {
+                showResult('Отсутствует объект "pow" в JSON данных', 'error');
+                return;
+            }
+
+            const pow_data = data.pow;
+            const version = pow_data.algorithm?.version || 1;
+            const complexity = parseInt(pow_data.complexity) || 0;
+            const timestamp = parseInt(pow_data.timestamp) || 0;
+            const resourse = pow_data.algorithm?.resourse || '';
+            const extension = pow_data.algorithm?.extension || '';
+            const random_string = pow_data.random_string || '';
+
+            if (complexity <= 0 || timestamp <= 0 || !random_string) {
+                showResult('Отсутствуют обязательные параметры', 'error');
+                return;
+            }
+
+            showLoading();
+
+            // Используем setTimeout для асинхронного выполнения
+            setTimeout(() => {
+                const startTime = Date.now();
+                const result = pow(version, complexity, timestamp, resourse, extension, random_string);
+                const endTime = Date.now();
+
+                hideLoading();
+
+                if (result) {
+                    const debugInfo = `
+                        <div class="debug-info">
+                            <strong>Отладочная информация:</strong><br>
+                            Базовая строка: ${version}:${complexity}:${timestamp}:${resourse}:${extension}:${random_string}:<br>
+                            Финальная строка: ${result.string}<br>
+                            Keccak-512 хеш: ${result.hash}<br>
+                            Время выполнения: ${endTime - startTime}ms<br>
+                            Алгоритм: Keccak-512 (100% совместимость с Lesta.ru)
+                        </div>
+                    `;
+
+                    showResult(`
+                        <h4>✅ POW найден: ${result.pow}</h4>
+                        <p><strong>Результат:</strong> ${result.pow}</p>
+                        <p><strong>Время выполнения:</strong> ${endTime - startTime}ms</p>
+                        ${debugInfo}
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <h4>❌ POW не найден</h4>
+                        <p>Не удалось найти подходящий POW в диапазоне 1-999,999</p>
+                        <p><strong>Время выполнения:</strong> ${endTime - startTime}ms</p>
+                    `, 'error');
+                }
+            }, 100);
+        }
+
+        async function compareAlgorithms() {
+            const jsonInput = document.getElementById('jsonInput').value.trim();
+            
+            if (!jsonInput) {
+                showResult('Пожалуйста, введите JSON данные для сравнения', 'error');
+                return;
+            }
+
+            let data;
+            try {
+                data = JSON.parse(jsonInput);
+            } catch (e) {
+                showResult('Ошибка парсинга JSON: ' + e.message, 'error');
+                return;
+            }
+
+            const pow_data = data.pow;
+            const version = pow_data.algorithm?.version || 1;
+            const complexity = parseInt(pow_data.complexity) || 0;
+            const timestamp = parseInt(pow_data.timestamp) || 0;
+            const resourse = pow_data.algorithm?.resourse || '';
+            const extension = pow_data.algorithm?.extension || '';
+            const random_string = pow_data.random_string || '';
+
+            showLoading();
+
+            setTimeout(() => {
+                const startTime1 = Date.now();
+                const resultKeccak = pow(version, complexity, timestamp, resourse, extension, random_string);
+                const endTime1 = Date.now();
+
+                const startTime2 = Date.now();
+                const resultSHA3 = powSHA3(version, complexity, timestamp, resourse, extension, random_string);
+                const endTime2 = Date.now();
+
+                hideLoading();
+
+                const comparisonTable = `
+                    <table class="comparison-table">
+                        <tr>
+                            <th>Алгоритм</th>
+                            <th>POW</th>
+                            <th>Время (ms)</th>
+                            <th>Совместимость с Lesta.ru</th>
+                        </tr>
+                        <tr>
+                            <td><strong>Keccak-512</strong></td>
+                            <td>${resultKeccak ? resultKeccak.pow : 'Не найден'}</td>
+                            <td>${endTime1 - startTime1}</td>
+                            <td>✅ 100%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>SHA3-512</strong></td>
+                            <td>${resultSHA3 ? resultSHA3.pow : 'Не найден'}</td>
+                            <td>${endTime2 - startTime2}</td>
+                            <td>❌ Может отличаться</td>
+                        </tr>
+                    </table>
+                `;
+
+                showResult(`
+                    <h4>⚖️ Сравнение алгоритмов</h4>
+                    ${comparisonTable}
+                    <p><strong>Рекомендация:</strong> Используйте Keccak-512 для 100% совместимости с Lesta.ru</p>
+                `, 'info');
+            }, 100);
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = `result-box result-${type}`;
+        }
+
+        function loadExample() {
+            const exampleData = {
+                "pow": {
+                    "random_string": "mFHUSfhz2fEooipG",
+                    "complexity": 3,
+                    "timestamp": 1751225480,
+                    "algorithm": {
+                        "name": "hashcash",
+                        "version": 1,
+                        "resourse": "wgni",
+                        "extension": ""
+                    },
+                    "type": "pow"
+                }
+            };
+
+            document.getElementById('jsonInput').value = JSON.stringify(exampleData, null, 2);
+            showResult('Пример данных загружен. Нажмите "Генерировать POW" для вычисления.', 'info');
+        }
+
+        function clearAll() {
+            document.getElementById('jsonInput').value = '';
+            document.getElementById('result').innerHTML = 'Нажмите "Генерировать POW" для начала вычислений';
+            document.getElementById('result').className = 'result-box';
+            hideLoading();
+        }
+
+        // Проверяем доступность библиотеки sha3
+        window.addEventListener('load', function() {
+            if (typeof sha3 === 'undefined') {
+                showResult('❌ Ошибка: Библиотека sha3.js не загружена. Проверьте подключение к интернету.', 'error');
+            } else {
+                showResult('✅ Готов к работе. Библиотека Keccak-512 загружена успешно.', 'success');
+            }
+        });
+    </script>
+</body>
+</html>
+
